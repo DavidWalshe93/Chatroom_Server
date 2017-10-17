@@ -23,7 +23,7 @@ public abstract class MultithreadedServer {
      *  then put the connection handler in a queue of tasks to
      *  be executed in separate threads. The class will continue to run until
      *  the server is killed (e.g., Control-C in the startup window)
-     *  or System.exit() from elsewhere in the Java code).
+     *  or System.exit() from elsewhere in the Java code)  .
      */
 
     public MultithreadedServer(int port) {

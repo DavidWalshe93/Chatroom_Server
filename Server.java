@@ -24,7 +24,7 @@ import java.util.logging.Logger;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
-public class Server extends JFrame { // extends MultithreadedServer {
+public class Server extends MultithreadedServer { // extends MultithreadedServer {
     JTextField enterField;
     JTextArea txtArea;
 
@@ -52,19 +52,19 @@ public class Server extends JFrame { // extends MultithreadedServer {
     private ConsoleHandler cs;
 
     public Server()  {
-        //super(8777);
+        super(8777);
         this.addFileHandler(logger);
         logger.log(Level.INFO, "");
     }
 
     public static void main(String[] var0) {
-
+        Server s = new Server();
         SwingUtilities.invokeLater(new Runnable() {
             public void run() {
-                Server s = new Server();
                 s.createAndShowGUI(s);
             }
         });
+        s.runServer();
     }
 
     private void addFileHandler(Logger logger) {
@@ -170,99 +170,99 @@ public class Server extends JFrame { // extends MultithreadedServer {
         return timeFormattedString;
     }
 
-}
+    public void runServer() {
+        try {
+            this.server = new ServerSocket(8777, 100);
 
-//    public void runServer() {
-//        try {
-//            this.server = new ServerSocket(8111, 100);
-//
-//            while(true) {
-//                while(true) {
-//                    try {
-//                        listen();
-//                    } catch (Exception e) {
-//                        System.err.println("Server terminated connection");
-//                    } finally {
-//                        this.closeConnection();
-//                        ++this.counter;
-//                    }
-//                }
-//            }
-//        } catch (IOException var9) {
-//            var9.printStackTrace();
-//        }
-//    }
-//
-//    private void waitForConnection() throws IOException {
-//        this.displayMessage("Waiting for connection\n");
-//        this.connection = this.server.accept();
-//        this.displayMessage("Connection " + this.counter + " received from: " + this.connection.getInetAddress().getHostName());
-//    }
-//
-//    private void getStreams() throws IOException {
-//        this.output = new ObjectOutputStream(this.connection.getOutputStream());
-//        this.output.flush();
-//        this.input = new ObjectInputStream(this.connection.getInputStream());
-//        this.displayMessage("\nGot I/O streams\n");
-//    }
-//
-//    private void processConnection() throws IOException {
-//        String var1 = "Connection successful";
-//        this.sendData(var1);
-//        this.setTextFieldEditable(true);
-//
-//        do {
-//            try {
-//                var1 = (String)this.input.readObject();
-//                this.displayMessage("\n" + var1);
-//            } catch (ClassNotFoundException var3) {
-//                this.displayMessage("\nUnknown object type received");
-//            }
-//        } while(!var1.equals("CLIENT>>> TERMINATE"));
-//
-//    }
-//
-//    private void closeConnection() {
-//        this.displayMessage("\nTerminating connection\n");
-//        this.setTextFieldEditable(false);
-//
-//        try {
-//            this.input.close();
-//        } catch (IOException var2) {
-//            var2.printStackTrace();
-//        }
-//
-//    }
-//
-//    private void sendData(String var1) {
-//        try {
-//            this.output.writeObject("SERVER>>> " + var1);
-//            this.output.flush();
-//            this.displayMessage("\nSERVER>>> " + var1);
-//        } catch (IOException var3) {
-//            this.txtArea.append("\nError writing object");
-//        }
-//    }
-//
-//    private void displayMessage(final String var1) {
-//        SwingUtilities.invokeLater(new Runnable() {
-//            public void run() {
-//                Server.this.txtArea.append(var1);
-//                Server.this.txtArea.setCaretPosition(Server.this.txtArea.getText().length());
-//            }
-//        });
-//    }
-//
-//    private void setTextFieldEditable(final boolean var1) {
-//        SwingUtilities.invokeLater(new Runnable() {
-//            public void run() {
-//                Server.this.enterField.setEditable(var1);
-//            }
-//        });
-//    }
-//    @Override
-//    public void handleConnection(Socket s)
-//    {
-//
-//    }
-//}
+            while(true) {
+                while(true) {
+                    try {
+                        waitForConnection();
+                        getStreams();
+                        processConnection();
+                    } catch (Exception e) {
+                        System.err.println("Server terminated connection");
+                    } finally {
+                        this.closeConnection();
+                        ++this.counter;
+                    }
+                }
+            }
+        } catch (IOException var9) {
+            var9.printStackTrace();
+        }
+    }
+
+    private void waitForConnection() throws IOException {
+        this.displayMessage("Waiting for connection\n");
+        this.connection = this.server.accept();
+        this.displayMessage("Connection " + this.counter + " received from: " + this.connection.getInetAddress().getHostName());
+    }
+
+    private void getStreams() throws IOException {
+        this.output = new ObjectOutputStream(this.connection.getOutputStream());
+        this.output.flush();
+        this.input = new ObjectInputStream(this.connection.getInputStream());
+        this.displayMessage("\nGot I/O streams\n");
+    }
+
+    private void processConnection() throws IOException {
+        String var1 = "Connection successful";
+        this.sendData(var1);
+        this.setTextFieldEditable(true);
+
+        do {
+            try {
+                var1 = (String)this.input.readObject();
+                this.displayMessage("\n" + var1);
+            } catch (ClassNotFoundException var3) {
+                this.displayMessage("\nUnknown object type received");
+            }
+        } while(!var1.equals("CLIENT>>> TERMINATE"));
+
+    }
+
+    private void closeConnection() {
+        this.displayMessage("\nTerminating connection\n");
+        this.setTextFieldEditable(false);
+
+        try {
+            this.input.close();
+        } catch (IOException var2) {
+            var2.printStackTrace();
+        }
+
+    }
+
+    private void sendData(String var1) {
+        try {
+            this.output.writeObject("SERVER>>> " + var1);
+            this.output.flush();
+            this.displayMessage("\nSERVER>>> " + var1);
+        } catch (IOException var3) {
+            this.txtArea.append("\nError writing object");
+        }
+    }
+
+    private void displayMessage(final String var1) {
+        SwingUtilities.invokeLater(new Runnable() {
+            public void run() {
+                Server.this.txtArea.append(var1);
+                Server.this.txtArea.setCaretPosition(Server.this.txtArea.getText().length());
+            }
+        });
+    }
+
+    private void setTextFieldEditable(final boolean var1) {
+        SwingUtilities.invokeLater(new Runnable() {
+            public void run() {
+                Server.this.enterField.setEditable(var1);
+            }
+        });
+    }
+    @Override
+    public void handleConnection(Socket s)
+    {
+
+    }
+}
