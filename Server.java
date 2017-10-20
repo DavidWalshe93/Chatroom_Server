@@ -1,7 +1,11 @@
-//
-// Source code recreated from a .class file by IntelliJ IDEA
-// (powered by Fernflower decompiler)
-//
+/**
+ * Author: David Walshe
+ * Date: 20/10/2017
+ * Decription:
+ *     This code sets up a MultiThreaded server to allow various clients to connect in and communicate
+ *     with a chatroom service.
+ */
+
 import net.miginfocom.swing.MigLayout;
 
 import java.awt.*;
@@ -12,11 +16,13 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import javax.swing.*;
 import javax.swing.text.DefaultCaret;
+import java.nio.Buffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.ConsoleHandler;
 import java.util.logging.FileHandler;
 import java.util.logging.Level;
@@ -24,49 +30,61 @@ import java.util.logging.Logger;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
-public class Server extends MultithreadedServer { // extends MultithreadedServer {
-    JTextField enterField;
-    JTextArea txtArea;
+public class Server extends MultithreadedServer {
 
-    private ObjectOutputStream output;
-    private ObjectInputStream input;
+    //Thread safe Objects and Variables
+    private DataContainer dc;
+    AtomicBoolean updateClients;
+
+    //Server Objects
     private ServerSocket server;
     private Socket connection;
-    //Create all GUI element reference holders
-    //JTextArea txtArea;
-//    JButton loadBtn;
-//    JButton cancelBtn;
-//    JProgressBar progressBar;
-//    JLabel timeStamp;
-//    JButton zipBtn;
-//    JFileChooser fileChooser;
-    private int counter = 1;
 
+    //Logger Objects
     private static final String CLASS_NAME = Server.class.getName();
-
-    //Create Swing Workers to process asynchronous blocking requests in the GUI.
-    public SwingWorker<Integer, String> worker;
-    public SwingWorker<Integer, String> workerZip;
     private static final Logger logger = Logger.getLogger(Server.class.getName());
     private FileHandler fileHandler;
     private ConsoleHandler cs;
 
-    public Server()  {
-        super(8777);
+    //Constructor
+    public Server() {
+        super(8112);
         this.addFileHandler(logger);
         logger.log(Level.INFO, "");
+        updateClients = new AtomicBoolean(false);       //Used to alert all Output threads of newly available content for their respective client sockets.
+        dc = new DataContainer(20);                           //Set up a data container to hold the conversation history, limited to 20 lines
     }
 
-    public static void main(String[] var0) {
-        Server s = new Server();
-        SwingUtilities.invokeLater(new Runnable() {
-            public void run() {
-                s.createAndShowGUI(s);
+    /**
+     * Used to parse the filehandler for the log output from XML to human readable layout
+     */
+    public void parseLog() {
+        Process proc;
+        try{
+            String srcPath = System.getProperty("user.dir");
+            //Get the source path of the raw log file
+            while(srcPath.contains("\\")) {
+                srcPath = srcPath.replace("\\", "/");
             }
-        });
-        s.runServer();
+            srcPath += "/Server.log";
+            //Get the destination path of the parsed log file
+            String desPath = System.getProperty("user.dir");
+            while(desPath.contains("\\")) {
+                desPath = desPath.replace("\\", "/");
+            }
+            desPath += "/Server_Parsed.log";
+            logger.log(Level.INFO, "Executing Perl Formatting Script on GUI Exit");
+            //Call Perl Process to do the text conversion
+            proc = Runtime.getRuntime().exec("Perl C:\\Users\\David\\Desktop\\Client-Server\\Server\\src\\FormatLoggerFileHandler.pl " + srcPath + " " + desPath);
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "Execption: " + e.getMessage());
+        }
     }
 
+    /**
+     * This method is used to set up a filehandler for the logger object created within this program.
+     *
+     */
     private void addFileHandler(Logger logger) {
         try {
             fileHandler = new FileHandler(CLASS_NAME + ".log");
@@ -84,185 +102,191 @@ public class Server extends MultithreadedServer { // extends MultithreadedServer
         cs.setLevel(Level.ALL);
     }
 
-    //GUI maker method called by main.
-    public static void createAndShowGUI(Server s) {
-        logger.entering(CLASS_NAME, "createAndShowGUI");
+    /**
+     * This is a static utility method to be used to give formatted time information out.
+     *
+     */
+    private static String timeFormatter(long milliseconds, String format) {
 
-        logger.log(Level.INFO, "Creating GUI");
-        JFrame frame = new JFrame("Thread Safe GUI");
-        frame.setSize(600, 600);
-        frame.setLocation(600, 300);
-
-        Server demo = s;
-
-        frame.setContentPane(demo.createContentPane());
-
-        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-
-        frame.setVisible(true);
-        logger.exiting(CLASS_NAME, "createAndShowGUI");
-    }
-
-    //Create the GUI look and feel. Init and setup up all components in the GUI.
-    private JPanel createContentPane() {
-        logger.entering(CLASS_NAME, "createContentPane");
-        JPanel totalGUI = new JPanel();
-        totalGUI.setSize(600, 600);
-        totalGUI.setLayout(new MigLayout("", "", ""));
-
-        this.enterField = new JTextField();
-        this.enterField.setEditable(false);
-        this.enterField.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent var1) {
-                //sendData(var1.getActionCommand());
-                enterField.setText("");
-            }
-        });
-
-        //Instantiate the TextArea to suit the GUI
-        txtArea = new JTextArea("", 5, 30);
-        txtArea.setEditable(false);
-        txtArea.setLineWrap(true);
-        txtArea.setWrapStyleWord(true);
-        DefaultCaret caret = (DefaultCaret) txtArea.getCaret();
-        caret.setUpdatePolicy(DefaultCaret.NEVER_UPDATE);
-
-
-        // Create the ScrollPane and instantiate it with the TextArea as an argument
-        // along with two constants that define the behaviour of the scrollbars.
-        JScrollPane area = new JScrollPane(txtArea, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
-                JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
-
-
-
-        //Where the GUI is constructed:
-        totalGUI.add(enterField, "span, grow");
-        totalGUI.add(area, "span, push, grow");
-//        totalGUI.add(timeStamp, "span, grow");
-//        totalGUI.add(progressBar, "span, grow");
-//        totalGUI.add(loadBtn, "span, grow, split");
-//        totalGUI.add(zipBtn, "span, grow, split");
-//        totalGUI.add(cancelBtn, "span, grow, split");
-
-        totalGUI.setOpaque(true);
-        logger.exiting(CLASS_NAME, "createContentPane");
-        return totalGUI;
-    }
-
-
-    //Static method to return a structured time format to the GUI.
-    private static String timeFormatter(long milliseconds) {
-        logger.entering(CLASS_NAME, "timeFormatter");
+        //logger.entering(CLASS_NAME, "timeFormatter");
         int seconds = (int) (milliseconds / 1000) % 60;
         int minutes = (int) ((milliseconds / (1000 * 60)) % 60);
-        int hours = (int) ((milliseconds / (1000 * 60 * 60)) % 24);
+        int hours = (int) ((milliseconds / (1000 * 60 * 60)) % 24);  //For some unknown reason 1 hour difference being exhibited from actual time.
         milliseconds %= 1000;
-        String timeFormattedString = "";
-        timeFormattedString = String.format("%02d", hours);
-        timeFormattedString += ":";
-        timeFormattedString += String.format("%02d", minutes);
-        timeFormattedString += ":";
-        timeFormattedString += String.format("%02d", seconds);
-        timeFormattedString += ".";
-        timeFormattedString += String.format("%03d", milliseconds);
-        logger.exiting(CLASS_NAME, "timeFormatter");
-        logger.exiting(CLASS_NAME, "timeFormatter");
-        return timeFormattedString;
+        StringBuilder timeFormattedString = new StringBuilder();
+        format = format.toUpperCase();
+        switch (format) {
+            case "H,M,S,U":
+                timeFormattedString.append(String.format("%02d", hours));
+                timeFormattedString.append(":");
+                timeFormattedString.append(String.format("%02d", minutes));
+                timeFormattedString.append(":");
+                timeFormattedString.append(String.format("%02d", seconds));
+                timeFormattedString.append(".");
+                timeFormattedString.append(String.format("%03d", milliseconds));
+                break;
+            case "H,M,S":
+                timeFormattedString.append(String.format("%02d", hours));
+                timeFormattedString.append(":");
+                timeFormattedString.append(String.format("%02d", minutes));
+                timeFormattedString.append(":");
+                timeFormattedString.append(String.format("%02d", seconds));
+                break;
+            case "H,M":
+                timeFormattedString.append(String.format("%02d", hours));
+                timeFormattedString.append(":");
+                timeFormattedString.append(String.format("%02d", minutes));
+                break;
+            case "H":
+                timeFormattedString.append(String.format("%02d", hours));
+                break;
+            case "M":
+                timeFormattedString.append(String.format("%02d", minutes));
+                break;
+            case "S":
+                timeFormattedString.append(String.format("%02d", seconds));
+                break;
+            case "U":
+                timeFormattedString.append(String.format("%03d", milliseconds));
+                break;
+            default:
+                timeFormattedString.append(String.format("%02d", hours));
+                timeFormattedString.append(":");
+                timeFormattedString.append(String.format("%02d", minutes));
+                timeFormattedString.append(":");
+                timeFormattedString.append(String.format("%02d", seconds));
+                break;
+        }
+        //logger.exiting(CLASS_NAME, "timeFormatter");
+        //logger.exiting(CLASS_NAME, "timeFormatter");
+        return timeFormattedString.toString();
     }
 
+    /**
+     * This method is used to set up the server and begin listening for client socket connections.
+     */
     public void runServer() {
         try {
-            this.server = new ServerSocket(8777, 100);
-
-            while(true) {
-                while(true) {
-                    try {
-                        waitForConnection();
-                        getStreams();
-                        processConnection();
-                    } catch (Exception e) {
-                        System.err.println("Server terminated connection");
-                    } finally {
-                        this.closeConnection();
-                        ++this.counter;
-                    }
+            while (true) {
+                try {
+                    listen();
+                } catch (Exception e) {
+                    System.err.println("Server terminated connection");
+                } finally {
                 }
             }
-        } catch (IOException var9) {
+        } catch (Exception var9) {
             var9.printStackTrace();
         }
     }
 
-    private void waitForConnection() throws IOException {
-        this.displayMessage("Waiting for connection\n");
-        this.connection = this.server.accept();
-        this.displayMessage("Connection " + this.counter + " received from: " + this.connection.getInetAddress().getHostName());
-    }
-
-    private void getStreams() throws IOException {
-        this.output = new ObjectOutputStream(this.connection.getOutputStream());
-        this.output.flush();
-        this.input = new ObjectInputStream(this.connection.getInputStream());
-        this.displayMessage("\nGot I/O streams\n");
-    }
-
-    private void processConnection() throws IOException {
-        String var1 = "Connection successful";
-        this.sendData(var1);
-        this.setTextFieldEditable(true);
-
-        do {
-            try {
-                var1 = (String)this.input.readObject();
-                this.displayMessage("\n" + var1);
-            } catch (ClassNotFoundException var3) {
-                this.displayMessage("\nUnknown object type received");
-            }
-        } while(!var1.equals("CLIENT>>> TERMINATE"));
-
-    }
-
-    private void closeConnection() {
-        this.displayMessage("\nTerminating connection\n");
-        this.setTextFieldEditable(false);
-
-        try {
-            this.input.close();
-        } catch (IOException var2) {
-            var2.printStackTrace();
-        }
-
-    }
-
-    private void sendData(String var1) {
-        try {
-            this.output.writeObject("SERVER>>> " + var1);
-            this.output.flush();
-            this.displayMessage("\nSERVER>>> " + var1);
-        } catch (IOException var3) {
-            this.txtArea.append("\nError writing object");
-        }
-    }
-
-    private void displayMessage(final String var1) {
-        SwingUtilities.invokeLater(new Runnable() {
-            public void run() {
-                Server.this.txtArea.append(var1);
-                Server.this.txtArea.setCaretPosition(Server.this.txtArea.getText().length());
-            }
-        });
-    }
-
-    private void setTextFieldEditable(final boolean var1) {
-        SwingUtilities.invokeLater(new Runnable() {
-            public void run() {
-                Server.this.enterField.setEditable(var1);
-            }
-        });
-    }
+    /**
+     * This method is used to handle all incoming connections that are accepted by the listen method in
+     * the listen method within the MultithreadedServer Class. It sets up two threads, one for input from
+     * a client socket and the other is used to set up an output connection back to the client.
+     */
     @Override
-    public void handleConnection(Socket s)
-    {
+    public void handleConnection(Socket s, long id) {
+        logger.entering(CLASS_NAME, "handleConnection - Thread: " + id);
+        Socket connection = s;
+        long threadId = id;
+        AtomicBoolean[] alive = new AtomicBoolean[1];
+        alive[0] = new AtomicBoolean();
+        alive[0].set(true);
 
+        long threadStartTime = System.currentTimeMillis();
+
+        try(        BufferedReader in = SocketUtils.getReader(connection);
+                    PrintWriter out = SocketUtils.getWriter(connection)
+        ) {
+            logger.log(Level.INFO, "Got I/O Streams from Client");
+            processInputConnection(threadId, in, alive);
+            processOutputConnection(threadId, out, alive);
+            while (alive[0].get()) {
+                Thread.sleep(10000);
+                long threadCurrentTime = System.currentTimeMillis();
+                long threadRunTime = threadCurrentTime - threadStartTime;
+                System.out.println(id + " -- Connection state: " + alive[0].get() + "\n\r" + "Connection Time: " + timeFormatter(threadRunTime, "H,M,S"));
+            }
+            logger.log(Level.INFO, "Client Thread " + id + " Finished");
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        logger.exiting(CLASS_NAME, "handleConnection - Thread: " + id);
+    }
+
+    /**
+     * This method is used to kick of an input connection from a client socket. It reads in all text data
+     * on the socket connection and adds it to a DataContainer to be stored and distributed to other clients
+     */
+    private void processInputConnection(long id, BufferedReader in, AtomicBoolean[] alive) {
+        logger.entering(CLASS_NAME, "processInputConnection - Thread: " + id);
+        try {
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    dc.add("CLIENT_" + id + "@[" + timeFormatter(System.currentTimeMillis(), "H,M") + "] Joined the Chat !\r\n");
+                    updateClients.set(true);
+                    try {
+                        String input = "";
+                        while ((input = in.readLine()) != null) {
+                            if (input.contains("exit_chat")) {
+                                break;
+                            } else {
+                                dc.add("CLIENT_" + id + "@[" + timeFormatter(System.currentTimeMillis(), "H,M") + "] >>> " + input + "\r\n");
+                                dc.boundSize();
+                                updateClients.set(true);
+                            }
+                        }
+                        alive[0].set(false);
+                    } catch (Exception e) {
+                        alive[0].set(false);
+                        e.printStackTrace();
+                    }
+                    dc.add("\r\nCLIENT_" + id + "@[" + timeFormatter(System.currentTimeMillis(), "H,M") + "] Left the Chat !\r\n");
+                    updateClients.set(true);
+                    System.out.println("Thread " + id + " Reader Closed");
+                }
+            }).start();
+        } catch (Exception e) {
+            alive[0].set(false);
+            e.printStackTrace();
+        }
+        logger.exiting(CLASS_NAME, "processInputConnection - Thread: " + id);
+    }
+
+    /**
+     * This method is used to kick of an output connection to a client socket. It prints out all text data
+     * within a data container object to allow for
+     */
+    private void processOutputConnection(long id, PrintWriter pr, AtomicBoolean[] alive) {
+        logger.entering(CLASS_NAME, "processOutputConnection - Thread: " + id);
+        PrintWriter out = pr;
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    logger.entering(CLASS_NAME, "processingOutputThread->Runnable - Thread: " + id);
+                    while (alive[0].get()) {
+                        if (updateClients.get()) {
+                            out.println(dc.toString() + "\r\n<EOT>\r\n");
+                            Thread.sleep(20);
+                            updateClients.set(false);
+                        }
+                        Thread.sleep(10);
+                        if (out.checkError()) {
+                            System.out.println("Error: OutputStream Killed");
+                            break;
+                        }
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+                logger.log(Level.INFO, "Thread " + id + " Writer Closed");
+                System.out.println("Thread " + id + " Writer Closed");
+                logger.exiting(CLASS_NAME, "processingOutputThread->Runnable - Thread: " + id);
+            }
+        }).start();
+        logger.exiting(CLASS_NAME, "processOutputConnection - Thread: " + id);
     }
 }

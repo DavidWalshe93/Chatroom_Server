@@ -42,20 +42,27 @@ public abstract class MultithreadedServer {
      */
 
     public void listen() {
-        int poolSize =
-                50 * Runtime.getRuntime().availableProcessors();
-        ExecutorService tasks =
-                Executors.newFixedThreadPool(poolSize);
+        long threadId = 0;
+        System.out.println(Long.SIZE);
+        int poolSize = 2;
+        System.out.println("PoolSize: " + poolSize);
+        ExecutorService tasks = Executors.newFixedThreadPool(poolSize);
         try(ServerSocket listener = new ServerSocket(port)) {
             Socket socket;
             while(true) {  // Run until killed
                 socket = listener.accept();
-                tasks.execute(new ConnectionHandler(socket));
+                tasks.execute(new ConnectionHandler(socket, threadId));
+                threadId++;
+                if(threadId > (Long.SIZE-1))
+                {
+                    threadId = 0;
+                }
             }
         } catch (IOException ioe) {
             System.err.println("IOException: " + ioe);
             ioe.printStackTrace();
         }
+        tasks.shutdown();
     }
 
     /** This is the method that provides the behavior to the
@@ -64,20 +71,22 @@ public abstract class MultithreadedServer {
      *  you write.</b>
      */
 
-    protected abstract void handleConnection(Socket connection)
+    protected abstract void handleConnection(Socket connection, long threadID)
             throws IOException;
 
     private class ConnectionHandler implements Runnable {
         private Socket connection;
+        private long threadId;
 
-        public ConnectionHandler(Socket socket) {
+        public ConnectionHandler(Socket socket, long id) {
             this.connection = socket;
+            this.threadId = id;
         }
 
         @Override
         public void run() {
             try {
-                handleConnection(connection);
+                handleConnection(connection, threadId);
             } catch(IOException ioe) {
                 System.err.println("IOException: " + ioe);
             }
