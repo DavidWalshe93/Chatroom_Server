@@ -1,6 +1,8 @@
 import java.net.*;
 import java.util.concurrent.*;
 import java.io.*;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /** A template for a multithreaded server. Subclass this and implement
  *  handleConnection. Then instantiate your subclass with a port number,
@@ -17,6 +19,7 @@ import java.io.*;
 
 public abstract class MultithreadedServer {
     private int port;
+    private long timeoutCount;
 
     /** Build a server on specified port. The server will accept
      *  a connection and then pass the connection to a connection handler,
@@ -28,6 +31,7 @@ public abstract class MultithreadedServer {
 
     public MultithreadedServer(int port) {
         this.port = port;
+        this.timeoutCount = 0;
     }
 
     /** Gets port on which server is listening. */
@@ -41,16 +45,16 @@ public abstract class MultithreadedServer {
      *  which will execute it in background thread.
      */
 
-    public void listen() {
+    public void listen(Logger logger) {
         long threadId = 0;
-        System.out.println(Long.SIZE);
-        int poolSize = 2;
-        System.out.println("PoolSize: " + poolSize);
+        int poolSize = 5;
         ExecutorService tasks = Executors.newFixedThreadPool(poolSize);
         try(ServerSocket listener = new ServerSocket(port)) {
+            listener.setSoTimeout(10000);
             Socket socket;
             while(true) {  // Run until killed
                 socket = listener.accept();
+                timeoutCount = 0;
                 tasks.execute(new ConnectionHandler(socket, threadId));
                 threadId++;
                 if(threadId > (Long.SIZE-1))
@@ -58,6 +62,11 @@ public abstract class MultithreadedServer {
                     threadId = 0;
                 }
             }
+        } catch (SocketTimeoutException e)
+        {
+            timeoutCount++;
+            logger.log(Level.INFO, "Timeouts Occured: " + timeoutCount);
+            System.out.println("Timeouts Occured: " + timeoutCount);
         } catch (IOException ioe) {
             System.err.println("IOException: " + ioe);
             ioe.printStackTrace();

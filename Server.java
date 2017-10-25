@@ -169,10 +169,9 @@ public class Server extends MultithreadedServer {
         try {
             while (true) {
                 try {
-                    listen();
+                    listen(logger);
                 } catch (Exception e) {
                     System.err.println("Server terminated connection");
-                } finally {
                 }
             }
         } catch (Exception var9) {
@@ -219,8 +218,9 @@ public class Server extends MultithreadedServer {
      * This method is used to kick of an input connection from a client socket. It reads in all text data
      * on the socket connection and adds it to a DataContainer to be stored and distributed to other clients
      */
-    private void processInputConnection(long id, BufferedReader in, AtomicBoolean[] alive) {
+    private void processInputConnection(long id, BufferedReader br, AtomicBoolean[] alive) {
         logger.entering(CLASS_NAME, "processInputConnection - Thread: " + id);
+        BufferedReader in = br;
         try {
             new Thread(new Runnable() {
                 @Override
@@ -233,7 +233,9 @@ public class Server extends MultithreadedServer {
                             if (input.contains("exit_chat")) {
                                 break;
                             } else {
-                                dc.add("CLIENT_" + id + "@[" + timeFormatter(System.currentTimeMillis(), "H,M") + "] >>> " + input + "\r\n");
+                                String user = parseUser(input);
+                                input = parseContent(input);
+                                dc.add("CLIENT_" + id + "(" + user + ")@[" + timeFormatter(System.currentTimeMillis(), "H,M") + "] >>> " + input + "\r\n");
                                 dc.boundSize();
                                 updateClients.set(true);
                             }
@@ -253,6 +255,22 @@ public class Server extends MultithreadedServer {
             e.printStackTrace();
         }
         logger.exiting(CLASS_NAME, "processInputConnection - Thread: " + id);
+    }
+
+    private String parseUser(String input)
+    {
+        String str = "";
+        str = input.substring(input.indexOf("<USER>")+"<USER>".length(), input.lastIndexOf("<USER>"));
+        System.out.println("USER: >" + str + "<");
+        return str;
+    }
+
+    private String parseContent(String input)
+    {
+        String str = "";
+        str = input.substring(input.lastIndexOf("<USER>") + "<USER>".length());
+        System.out.println("CONTENT: >" + str + "<\n");
+        return str;
     }
 
     /**
